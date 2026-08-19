@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        <div class="form-card" style="border-color:#ef4444;">
+            <div class="form-header">
+                <h4><i class="bi bi-person-x" style="color:#ef4444;"></i> Delete User</h4>
+                <p style="color:#ef4444;"><i class="bi bi-exclamation-triangle"></i> This action cannot be undone!</p>
+            </div>
+            <form method="POST" action="{{ url_for('delete_user') }}">
+                {{ form.hidden_tag() }}
+                <div class="row g-2">
+                    <div class="col-12">
+                        <div class="form-floating">
+                            {{ form.uid(class="form-control", placeholder="Username to delete") }}
+                            <label><i class="bi bi-person"></i> Username</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn" style="width:100%;padding:8px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.85rem;">
+                        <i class="bi bi-person-x"></i> Delete User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

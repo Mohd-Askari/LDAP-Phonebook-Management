@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="table-container">
+    <div class="table-header">
+        <h5><i class="bi bi-people"></i> User Directory</h5>
+        <div>
+            <span class="badge">{{ total_count }} Users</span>
+            <a href="{{ url_for('import_export') }}" class="btn" style="padding:2px 10px;font-size:0.65rem;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;margin-left:4px;">
+                <i class="bi bi-file-earmark-arrow"></i> Import/Export
+            </a>
+            <a href="{{ url_for('add_user') }}" class="btn" style="padding:2px 10px;font-size:0.65rem;background:var(--primary);color:#fff;border:none;border-radius:4px;margin-left:4px;">
+                <i class="bi bi-person-plus"></i> Add
+            </a>
+        </div>
+    </div>
+    
+    <!-- Search Bar -->
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border-color);background:var(--primary-bg);">
+        <form method="GET" action="{{ url_for('users') }}" id="searchForm" class="d-flex" style="gap:8px;">
+            <div style="flex:1;position:relative;">
+                <input type="text" 
+                       name="search" 
+                       class="form-control" 
+                       placeholder="Search by name, extension, mobile, or email..."
+                       value="{{ search_term or '' }}"
+                       id="searchInput"
+                       style="width:100%;padding:6px 12px;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);font-size:0.8rem;">
+            </div>
+            <button type="submit" class="btn" style="padding:6px 16px;background:var(--primary);color:#fff;border:none;border-radius:4px;font-size:0.8rem;">
+                <i class="bi bi-search"></i> Search
+            </button>
+            {% if search_term %}
+            <a href="{{ url_for('users', page=1) }}" class="btn" style="padding:6px 16px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.8rem;">
+                <i class="bi bi-x"></i> Clear
+            </a>
+            {% endif %}
+        </form>
+        {% if search_term %}
+        <div style="margin-top:6px;font-size:0.75rem;color:var(--text-secondary);">
+            Showing results for: "<strong>{{ search_term }}</strong>"
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Results Info -->
+    <div style="padding:6px 16px;border-bottom:1px solid var(--border-color);font-size:0.75rem;color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
+        <span>
+            Showing {{ users|length }} of {{ total_count }} users
+            {% if search_term %}
+                matching "<strong>{{ search_term }}</strong>"
+            {% endif %}
+        </span>
+        <span>
+            Page {{ page }} of {{ total_pages }} ({{ per_page }} per page)
+        </span>
+    </div>
+    
+    <!-- Bulk Actions Bar -->
+    <div id="bulkActions" style="display:none;padding:8px 16px;background:var(--primary-bg);border-bottom:1px solid var(--border-color);">
+        <div class="d-flex justify-content-between align-items-center">
+            <span style="font-size:0.8rem;font-weight:600;color:var(--text-color);">
+                <span id="selectedCount">0</span> users selected
+            </span>
+            <div>
+                <button onclick="deleteSelected()" class="btn" style="padding:4px 14px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:0.75rem;font-weight:600;margin-right:6px;">
+                    <i class="bi bi-trash"></i> Delete Selected
+                </button>
+                <button onclick="clearSelection()" class="btn" style="padding:4px 14px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;font-weight:600;">
+                    <i class="bi bi-x"></i> Clear
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div style="overflow-x:auto;">
+        <form id="userForm" method="POST" action="/delete_multiple_users">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width:30px;">
+                            <input type="checkbox" id="selectAll" onchange="toggleAll(this)" style="cursor:pointer;">
+                        </th>
+                        <th>
+                            <a href="{{ url_for('users', page=page, per_page=per_page, search=search_term, sort='givenName') }}" 
+                               style="color:var(--text-color);text-decoration:none;">
+                                First Name
+                                {% if sort_by == 'givenName' %} <i class="bi bi-arrow-up-short"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('users', page=page, per_page=per_page, search=search_term, sort='sn') }}" 
+                               style="color:var(--text-color);text-decoration:none;">
+                                Last Name
+                                {% if sort_by == 'sn' %} <i class="bi bi-arrow-up-short"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('users', page=page, per_page=per_page, search=search_term, sort='telephoneNumber') }}" 
+                               style="color:var(--text-color);text-decoration:none;">
+                                Extension
+                                {% if sort_by == 'telephoneNumber' %} <i class="bi bi-arrow-up-short"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('users', page=page, per_page=per_page, search=search_term, sort='mobile') }}" 
+                               style="color:var(--text-color);text-decoration:none;">
+                                Mobile
+                                {% if sort_by == 'mobile' %} <i class="bi bi-arrow-up-short"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>Other Number</th>
+                        <th style="width:100px;text-align:center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr id="row-{{ user.uid }}">
+                        <td>
+                            <input type="checkbox" class="user-checkbox" name="selected_users" value="{{ user.uid }}" onchange="updateSelection()" style="cursor:pointer;">
+                        </td>
+                        <td><strong>{{ user.givenName or user.cn.split(' ')[0] if user.cn else '' }}</strong></td>
+                        <td>{{ user.sn or user.cn.split(' ')[-1] if user.cn and ' ' in user.cn else '' }}</td>
+                        <td>{{ user.telephoneNumber or '-' }}</td>
+                        <td>{{ user.mobile or '-' }}</td>
+                        <td>{{ user.phone2 or '-' }}</td>
+                        <td style="text-align:center;white-space:nowrap;">
+                            <a href="{{ url_for('edit_user', uid=user.uid) }}" class="btn" style="padding:2px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;font-size:0.65rem;font-weight:600;cursor:pointer;display:inline-block;margin-right:2px;">
+                                <i class="bi bi-pencil"></i> Edit
+                            </a>
+                            <button onclick="deleteUser('{{ user.uid }}')" class="btn" style="padding:2px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:0.65rem;font-weight:600;cursor:pointer;display:inline-block;">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-3" style="color:var(--text-secondary);font-size:0.85rem;">
+                            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:4px;"></i>
+                            {% if search_term %}
+                                No users found matching "{{ search_term }}".
+                            {% else %}
+                                No users found. <a href="{{ url_for('add_user') }}" style="color:var(--primary);">Add your first user</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+    </div>
+    
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="padding:12px 16px;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <!-- Previous -->
+            {% if page > 1 %}
+            <a href="{{ url_for('users', page=page-1, per_page=per_page, search=search_term, sort=sort_by) }}" 
+               class="btn" style="padding:4px 12px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;">
+                <i class="bi bi-chevron-left"></i> Prev
+            </a>
+            {% else %}
+            <span class="btn" style="padding:4px 12px;background:var(--bg-color);color:var(--text-secondary);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;opacity:0.5;cursor:not-allowed;">
+                <i class="bi bi-chevron-left"></i> Prev
+            </span>
+            {% endif %}
+            
+            <!-- Page numbers -->
+            {% set start_page = [page - 2, 1]|max %}
+            {% set end_page = [page + 2, total_pages]|min %}
+            
+            {% if start_page > 1 %}
+            <a href="{{ url_for('users', page=1, per_page=per_page, search=search_term, sort=sort_by) }}" 
+               class="btn" style="padding:4px 10px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;">
+                1
+            </a>
+            {% if start_page > 2 %}
+            <span style="padding:4px 6px;color:var(--text-secondary);font-size:0.75rem;">…</span>
+            {% endif %}
+            {% endif %}
+            
+            {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+            <span class="btn" style="padding:4px 10px;background:var(--primary);color:#fff;border:1px solid var(--primary);border-radius:4px;font-size:0.75rem;font-weight:600;">
+                {{ p }}
+            </span>
+            {% else %}
+            <a href="{{ url_for('users', page=p, per_page=per_page, search=search_term, sort=sort_by) }}" 
+               class="btn" style="padding:4px 10px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;">
+                {{ p }}
+            </a>
+            {% endif %}
+            {% endfor %}
+            
+            {% if end_page < total_pages %}
+            {% if end_page < total_pages - 1 %}
+            <span style="padding:4px 6px;color:var(--text-secondary);font-size:0.75rem;">…</span>
+            {% endif %}
+            <a href="{{ url_for('users', page=total_pages, per_page=per_page, search=search_term, sort=sort_by) }}" 
+               class="btn" style="padding:4px 10px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;">
+                {{ total_pages }}
+            </a>
+            {% endif %}
+            
+            <!-- Next -->
+            {% if page < total_pages %}
+            <a href="{{ url_for('users', page=page+1, per_page=per_page, search=search_term, sort=sort_by) }}" 
+               class="btn" style="padding:4px 12px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;">
+                Next <i class="bi bi-chevron-right"></i>
+            </a>
+            {% else %}
+            <span class="btn" style="padding:4px 12px;background:var(--bg-color);color:var(--text-secondary);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;opacity:0.5;cursor:not-allowed;">
+                Next <i class="bi bi-chevron-right"></i>
+            </span>
+            {% endif %}
+        </div>
+        
+        <!-- Per page selector - Default 25 selected -->
+        <form method="GET" action="{{ url_for('users') }}" style="display:flex;align-items:center;gap:6px;">
+            <input type="hidden" name="search" value="{{ search_term }}">
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+            <label style="font-size:0.75rem;color:var(--text-secondary);">Show:</label>
+            <select name="per_page" onchange="this.form.submit()" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);font-size:0.75rem;">
+                <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content" style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;">
+            <div class="modal-header" style="border-bottom:1px solid var(--border-color);padding:12px 16px;">
+                <h5 class="modal-title" style="color:var(--text-color);font-size:0.9rem;font-weight:600;">
+                    <i class="bi bi-exclamation-triangle" style="color:#ef4444;"></i> Confirm Delete
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="color:var(--text-color);"></button>
+            </div>
+            <div class="modal-body" style="padding:16px;color:var(--text-secondary);font-size:0.85rem;">
+                <p id="deleteMessage">Are you sure you want to delete this user?</p>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--border-color);padding:12px 16px;">
+                <button type="button" class="btn" data-bs-dismiss="modal" style="padding:4px 16px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:4px;font-size:0.75rem;font-weight:600;">Cancel</button>
+                <button type="button" id="confirmDeleteBtn" class="btn" style="padding:4px 16px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:0.75rem;font-weight:600;">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentUserToDelete = null;
+let isBulkDelete = false;
+
+function toggleAll(source) {
+    document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = source.checked);
+    updateSelection();
+}
+
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkActions = document.getElementById('bulkActions');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (count > 0) {
+        bulkActions.style.display = 'block';
+        selectedCount.textContent = count;
+    } else {
+        bulkActions.style.display = 'none';
+    }
+}
+
+function clearSelection() {
+    document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAll').checked = false;
+    updateSelection();
+}
+
+function deleteUser(uid) {
+    currentUserToDelete = uid;
+    isBulkDelete = false;
+    document.getElementById('deleteMessage').textContent = 'Are you sure you want to delete user "' + uid + '"? This action cannot be undone.';
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+function deleteSelected() {
+    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+    const count = checkboxes.length;
+    if (count === 0) return;
+    
+    currentUserToDelete = null;
+    isBulkDelete = true;
+    document.getElementById('deleteMessage').textContent = 'Are you sure you want to delete ' + count + ' selected users? This action cannot be undone.';
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+    if (isBulkDelete) {
+        document.getElementById('userForm').submit();
+    } else if (currentUserToDelete) {
+        window.location.href = '/delete_user?uid=' + encodeURIComponent(currentUserToDelete);
+    }
+});
+
+// Auto-submit search on Enter
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('searchForm').submit();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,1 @@
+slapd -f /Users/abc/Downloads/LDAP_Server/ldap-phonebook-webapp/ldap-local/etc/slapd.conf -h ldap://127.0.0.1:1389 -d 1 

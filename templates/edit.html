@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+        <div class="form-card">
+            <div class="form-header text-center">
+                <h4><i class="bi bi-pencil-square" style="color:var(--primary);"></i> Edit User: <code style="color:var(--primary);">{{ user.uid }}</code></h4>
+                <p class="text-muted small">Update user information</p>
+            </div>
+            <form method="POST" action="{{ url_for('edit_user', uid=user.uid) }}">
+                <!-- First Name -->
+                <div class="mb-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="givenName" name="givenName" value="{{ user.givenName }}" placeholder="First Name" required>
+                        <label><i class="bi bi-person"></i> First Name <span style="color:#ef4444;">*</span></label>
+                    </div>
+                </div>
+                
+                <!-- Last Name -->
+                <div class="mb-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="sn" name="sn" value="{{ user.sn }}" placeholder="Last Name">
+                        <label><i class="bi bi-person"></i> Last Name</label>
+                    </div>
+                </div>
+                
+                <!-- Full Name (hidden or visible) -->
+               <!-- <div style="display:none;">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="cn" name="cn" value="{{ user.cn }}" placeholder="Full Name">
+                        <label><i class="bi bi-person-badge"></i> Full Name</label>
+                    </div>
+                </div>
+                
+                <!-- Extension -->
+                <div class="mb-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="telephoneNumber" name="telephoneNumber" value="{{ user.telephoneNumber }}" placeholder="Extension">
+                        <label><i class="bi bi-telephone"></i> Extension</label>
+                    </div>
+                </div>
+
+		    <!-- Mobile -->
+                <div class="mb-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="mobile" name="mobile" value="{{ user.mobile }}" placeholder="Mobile">
+                        <label><i class="bi bi-phone"></i> Mobile</label>
+                    </div>
+                </div>
+                
+                <!-- Other Number (Phone 2) -->
+                <div class="mb-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="phone2" name="phone2" value="{{ user.phone2 or '' }}" placeholder="Other Number">
+                        <label><i class="bi bi-telephone"></i> Other Number</label>
+                    </div>
+                </div>
+                
+                <!-- Mobile -->
+                <!--<div class="mb-3">
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="mobile" name="mobile" value="{{ user.mobile }}" placeholder="Mobile">
+                        <label><i class="bi bi-phone"></i> Mobile</label>
+                    </div>
+                </div>
+                
+                <!-- New Password (optional) -->
+                <!--<div class="mb-3">
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="New Password">
+                        <label><i class="bi bi-lock"></i> New Password (optional)</label>
+                    </div>
+		</div>-->
+                
+                <!-- Hidden fields -->
+                <div style="display:none;">
+                    <input type="text" name="employeeNumber" value="{{ user.employeeNumber }}">
+                    <input type="text" name="title" value="{{ user.title }}">
+                    <input type="text" name="departmentNumber" value="{{ user.departmentNumber }}">
+                    <input type="email" name="mail" value="{{ user.mail }}">
+                </div>
+                
+                <div class="mt-3">
+                    <button type="submit" class="btn" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.9rem;">
+                        <i class="bi bi-save"></i> Update User
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <a href="{{ url_for('users') }}" class="btn" style="width:100%;padding:10px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:6px;font-weight:600;font-size:0.9rem;text-align:center;display:block;">
+                        <i class="bi bi-arrow-left"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

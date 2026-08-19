@@ -1,0 +1,10 @@
+# docker-compose.override.yml
+version: '3.8'
+
+services:
+  ldap-phonebook:
+    environment:
+      - DEBUG=True
+    volumes:
+      - ./:/app
+    command: python app.py

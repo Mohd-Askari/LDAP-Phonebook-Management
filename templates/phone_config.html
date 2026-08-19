@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="form-card">
+            <div class="form-header">
+                <h4><i class="bi bi-phone" style="color:var(--primary);"></i> Phone LDAP Configuration</h4>
+                <p>Copy these settings to configure your CoreIP phones</p>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered" style="font-size:0.8rem;">
+                    <thead>
+                        <tr>
+                            <th style="width:35%;">Setting</th>
+                            <th style="width:65%;">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><i class="bi bi-server text-primary"></i> LDAP Server</td>
+                            <td><code>10.9.31.204</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-hash text-primary"></i> LDAP Port</td>
+                            <td><code>389</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-code-square text-primary"></i> Version</td>
+                            <td><code>3</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-person-badge text-primary"></i> Bind DN</td>
+                            <td><code style="font-size:0.7rem;">uid=ldap-search,ou=ServiceAccounts,dc=coreip,dc=local</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-key text-primary"></i> Password</td>
+                            <td><code>Service2024!</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-folder text-primary"></i> Search Base</td>
+                            <td><code>ou=People,dc=coreip,dc=local</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-filter text-primary"></i> Name Filter</td>
+                            <td><code style="font-size:0.7rem;">(&amp;(objectClass=person)(|(cn=%s*)(sn=%s*)(givenName=%s*)))</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-filter text-primary"></i> Number Filter</td>
+                            <td><code style="font-size:0.7rem;">(&amp;(objectClass=person)(|(telephoneNumber=%s*)(mobile=%s*)))</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-person text-primary"></i> Name Attr</td>
+                            <td><code>cn</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-telephone text-primary"></i> Phone Attr</td>
+                            <td><code>telephoneNumber</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-search text-primary"></i> Search Timeout</td>
+                            <td><code>5 seconds</code></td>
+                        </tr>
+                        <tr>
+                            <td><i class="bi bi-list text-primary"></i> Max Results</td>
+                            <td><code>100</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="alert alert-info mt-2" style="font-size:0.8rem;padding:8px 12px;">
+                <i class="bi bi-info-circle"></i>
+                <strong>How to configure on CoreIP Phone:</strong>
+                <ol class="mb-0 small">
+                    <li>Go to <strong>Settings → Phonebook → LDAP Settings</strong></li>
+                    <li>Enter the values above</li>
+                    <li>Press <strong>Apply</strong> to save</li>
+                    <li>Test by searching for a user</li>
+                </ol>
+            </div>
+            
+            <div class="mt-2">
+                <button class="btn btn-sm" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:4px 12px;" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Print Configuration
+                </button>
+                <button class="btn btn-sm" style="background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:6px;padding:4px 12px;" onclick="copyConfig()">
+                    <i class="bi bi-clipboard"></i> Copy All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyConfig() {
+    const rows = document.querySelectorAll('table tbody tr');
+    let config = '';
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 2) {
+            config += cells[0].textContent.trim() + ': ' + cells[1].textContent.trim() + '\n';
+        }
+    });
+    navigator.clipboard.writeText(config);
+    alert('Configuration copied to clipboard!');
+}
+</script>
+{% endblock %}

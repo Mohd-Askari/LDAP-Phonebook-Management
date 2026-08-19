@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block content %}
+<div class="row g-2">
+    <div class="col-lg-6">
+        <div class="form-card">
+            <div class="form-header">
+                <h4><i class="bi bi-file-earmark-arrow-up" style="color:#22c55e;"></i> Import CSV</h4>
+                <p>Upload a CSV file to import users</p>
+            </div>
+            <form method="POST" action="{{ url_for('import_csv') }}" enctype="multipart/form-data">
+                <div class="row g-2">
+                    <div class="col-12">
+                        <div class="form-floating">
+                            <input type="file" class="form-control" id="csv_file" name="csv_file" accept=".csv" required style="height:38px;padding:6px 10px;background:var(--bg-color);border:1px solid var(--border-color);border-radius:6px;color:var(--text-color);">
+                            <label for="csv_file" style="font-size:0.7rem;padding:6px 10px;"><i class="bi bi-file-earmark-text"></i> Select CSV File</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2" style="font-size:0.7rem;color:var(--text-secondary);">
+                    <i class="bi bi-info-circle"></i> Required: uid, cn, sn, givenName
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn" style="width:100%;padding:8px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.85rem;">
+                        <i class="bi bi-upload"></i> Import CSV
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="form-card">
+            <div class="form-header">
+                <h4><i class="bi bi-file-earmark-arrow-down" style="color:var(--primary);"></i> Export Data</h4>
+                <p>Export all users or download a template</p>
+            </div>
+            <div class="row g-2">
+                <div class="col-12">
+                    <a href="{{ url_for('export_csv') }}" class="btn" style="width:100%;padding:8px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.85rem;text-align:center;display:block;">
+                        <i class="bi bi-download"></i> Export All Users
+                    </a>
+                </div>
+                <div class="col-12">
+                    <a href="{{ url_for('export_sample_csv') }}" class="btn" style="width:100%;padding:8px;background:var(--bg-color);color:var(--text-color);border:1px solid var(--border-color);border-radius:6px;font-weight:600;font-size:0.85rem;text-align:center;display:block;">
+                        <i class="bi bi-file-earmark-text"></i> Download Sample Template
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CSV Format Guide -->
+<div class="row mt-2">
+    <div class="col-12">
+        <div class="form-card">
+            <div class="form-header">
+                <h4 style="font-size:0.85rem;"><i class="bi bi-info-circle" style="color:var(--primary);"></i> CSV Format Guide</h4>
+            </div>
+            <div class="row g-2" style="font-size:0.75rem;">
+                <div class="col-md-6">
+                    <span style="font-weight:600;color:var(--text-color);">Required Columns:</span>
+                    <ul class="list-unstyled" style="color:var(--text-secondary);">
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">uid</code> - Username (unique)</li>
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">cn</code> - Full Name</li>
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">sn</code> - Last Name</li>
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">givenName</code> - First Name</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <span style="font-weight:600;color:var(--text-color);">Optional Columns:</span>
+                    <ul class="list-unstyled" style="color:var(--text-secondary);">
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">employeeNumber</code> - Employee ID</li>
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">telephoneNumber</code> - Phone</li>
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">mail</code> - Email</li>
+                        <li><code style="background:var(--bg-color);padding:1px 6px;border-radius:3px;font-size:0.7rem;">password</code> - Default: Default123!</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+dn: cn=phone2schema,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: phone2schema
+
+olcAttributeTypes: ( 1.3.6.1.4.1.99999.1.1.100
+  NAME 'phone2'
+  DESC 'Second phone number'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+)
+
+olcObjectClasses: ( 1.3.6.1.4.1.99999.2.200
+  NAME 'phone2Object'
+  DESC 'Phone2 auxiliary object class'
+  SUP top
+  AUXILIARY
+  MAY ( phone2 )
+)

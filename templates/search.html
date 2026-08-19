@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="form-card">
+            <div class="form-header">
+                <h4><i class="bi bi-search" style="color:var(--primary);"></i> Search Users</h4>
+                <p>Search for users by name, phone number, email, or username</p>
+            </div>
+            <form method="POST" action="{{ url_for('search') }}">
+                {{ form.hidden_tag() }}
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <div class="form-floating">
+                            {{ form.search_type(class="form-control") }}
+                            <label><i class="bi bi-filter"></i> Search Type</label>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="form-floating">
+                            {{ form.search_term(class="form-control", placeholder="Enter search term...") }}
+                            <label><i class="bi bi-search"></i> Search Term</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn" style="width:100%;padding:8px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:0.8rem;height:38px;margin-top:1px;">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if results %}
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="table-container">
+            <div class="table-header">
+                <h5><i class="bi bi-list"></i> Search Results</h5>
+                <span class="badge">{{ results|length }} found</span>
+            </div>
+            <div style="overflow-x:auto;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>UID</th>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>Title</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in results %}
+                        <tr>
+                            <td><code style="color:var(--primary);">{{ user.uid }}</code></td>
+                            <td><strong>{{ user.cn }}</strong></td>
+                            <td>{{ user.telephoneNumber or '-' }}</td>
+                            <td>{{ user.mail or '-' }}</td>
+                            <td>{{ user.title or '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-3" style="color:var(--text-secondary);font-size:0.85rem;">
+                                <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:4px;"></i>
+                                No users found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

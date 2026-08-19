@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">
+  <rect width="200" height="60" rx="8" fill="#818cf8"/>
+  <text x="20" y="38" font-family="Inter, sans-serif" font-size="24" font-weight="700" fill="white">
+    LDAP
+  </text>
+  <text x="95" y="38" font-family="Inter, sans-serif" font-size="16" font-weight="300" fill="rgba(255,255,255,0.8)">
+    Manager
+  </text>
+  <text x="180" y="38" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.5)">
+    v1.0
+  </text>
+</svg>
