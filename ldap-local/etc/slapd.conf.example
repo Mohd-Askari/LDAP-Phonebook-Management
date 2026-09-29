@@ -1,0 +1,18 @@
+include         ./ldap-local/etc/schema/core.schema
+include         ./ldap-local/etc/schema/cosine.schema
+include         ./ldap-local/etc/schema/inetorgperson.schema
+include         ./ldap-local/etc/schema/phone2schema.schema
+pidfile         ./ldap-local/run/slapd.pid
+argsfile        ./ldap-local/run/slapd.args
+
+
+database        mdb
+maxsize         1073741824
+suffix          "dc=coreip,dc=local"
+rootdn          "cn=admin,dc=coreip,dc=local"
+rootpw          CHANGE_ME_GENERATE_HASH
+directory       ./ldap-local/data
+
+index           objectClass eq
+
+database        monitor
