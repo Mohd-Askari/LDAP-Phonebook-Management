@@ -39,7 +39,11 @@ LDAP_SERVER = os.getenv('LDAP_SERVER', '127.0.0.1')
 LDAP_PORT = int(os.getenv('LDAP_PORT', 1389))
 LDAP_BASE = os.getenv('LDAP_BASE', 'dc=coreip,dc=local')
 LDAP_ADMIN = os.getenv('LDAP_ADMIN', 'cn=admin,dc=coreip,dc=local')
-LDAP_PASSWORD = os.getenv('LDAP_PASSWORD', 'coreip@switch')
+LDAP_PASSWORD = os.getenv('LDAP_PASSWORD')
+if not LDAP_PASSWORD:
+    raise RuntimeError(
+        "LDAP_PASSWORD is required. Set it in your local .env file."
+    )
 PEOPLE_OU = os.getenv('PEOPLE_OU', f"ou=People,{LDAP_BASE}")
 
 # ============================================================================
@@ -52,7 +56,11 @@ MIN_PER_PAGE = 10
 # ============================================================================
 # Session & Security
 # ============================================================================
-SECRET_KEY = os.getenv('SECRET_KEY', os.urandom(24))
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY is required. Set a stable, randomly generated value in .env."
+    )
 SESSION_TIMEOUT = 3600  # 1 hour
 
 # ============================================================================
