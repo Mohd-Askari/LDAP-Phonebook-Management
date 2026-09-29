@@ -63,7 +63,6 @@ def main():
 
         with os.fdopen(fd, "w") as stream:
             stream.write(password)
-            stream.write("\n")
 
         hash_result = subprocess.run(
             [str(slappasswd), "-T", str(password_file)],
