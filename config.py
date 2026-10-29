@@ -52,7 +52,7 @@ MIN_PER_PAGE = 10
 # ============================================================================
 # Session & Security
 # ============================================================================
-SECRET_KEY = os.getenv('SECRET_KEY', os.urandom(24))
+SECRET_KEY = os.getenv('SECRET_KEY', 'coreip-phonebook-secret-key-2026')
 SESSION_TIMEOUT = 3600  # 1 hour
 
 # ============================================================================
