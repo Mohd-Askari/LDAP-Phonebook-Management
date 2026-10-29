@@ -1,0 +1,37 @@
+# Environment files (never commit real credentials)
+.env
+.env.*
+!.env.example
+
+# Python virtual environment & cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+scripts/__pycache__/
+*.backup
+*.before_fix
+*.tmp
+
+# OS files
+.DS_Store
+
+# LDAP database files & volumes (Do not commit large MDB binary files)
+ldap-data/
+*.mdb
+ldap-local/data/*
+!ldap-local/data/.gitkeep
+ldap-local/run/*
+!ldap-local/run/.gitkeep
+ldap-local/etc/slapd.conf
+ldap-local/etc/*.backup
+ldap-local/etc/*.bak
+ldap-local/etc/*.local-backup
+
+# Backups & runtime cache
+backups/*
+!backups/.gitkeep
+
+config.py.local-backup

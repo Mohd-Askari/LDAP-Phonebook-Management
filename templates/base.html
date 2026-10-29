@@ -593,7 +593,7 @@
                 })
                 .catch(() => {});
         }
-        setInterval(updateMetrics, 10000);
+        setInterval(() => { if (!document.hidden) updateMetrics(); }, 15000);
     </script>
 </body>
 </html>

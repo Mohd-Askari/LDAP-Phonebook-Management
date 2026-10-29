@@ -36,7 +36,7 @@ FEATURE_DEBUG = False  # Set to False in production
 # LDAP Settings (can be overridden by environment variables)
 # ============================================================================
 LDAP_SERVER = os.getenv('LDAP_SERVER', '127.0.0.1')
-LDAP_PORT = int(os.getenv('LDAP_PORT', 1389))
+LDAP_PORT = int(os.getenv('LDAP_PORT', 389))
 LDAP_BASE = os.getenv('LDAP_BASE', 'dc=coreip,dc=local')
 LDAP_ADMIN = os.getenv('LDAP_ADMIN', 'cn=admin,dc=coreip,dc=local')
 LDAP_PASSWORD = os.getenv('LDAP_PASSWORD', 'coreip@switch')

@@ -1,33 +1,45 @@
-# Makefile
-.PHONY: help build run stop logs clean shell
+# Makefile for CoreIP LDAP Phonebook Management
+.PHONY: help run stop logs build clean test install-base
 
 help:
-	@echo "Available commands:"
-	@echo "  make build    - Build Docker image"
-	@echo "  make run      - Run container in background"
-	@echo "  make stop     - Stop container"
-	@echo "  make logs     - View container logs"
-	@echo "  make clean    - Remove container and image"
-	@echo "  make shell    - Open shell in container"
+	@echo "=================================================================="
+	@echo "CoreIP LDAP & Phonebook Management - Command Reference"
+	@echo "=================================================================="
+	@echo "  make run          - Start centralized LDAP & Phonebook (Docker)"
+	@echo "  make stop         - Stop running containers"
+	@echo "  make restart      - Restart containers"
+	@echo "  make logs         - Stream container logs"
+	@echo "  make build        - Rebuild Docker image"
+	@echo "  make test         - Run Phase 1 & regression test suite"
+	@echo "  make install-base - Run native Linux installer (Debian/Ubuntu)"
+	@echo "=================================================================="
 
-build:
-	docker-compose build
-
+# --- Primary Docker Commands (All-In-One Centralized) ---
 run:
-	docker-compose up -d
-	@echo "✅ Application running at http://localhost:5004"
+	docker compose up -d
+	@echo "✅ CoreIP LDAP & Phonebook running!"
+	@echo "🌐 Web GUI:  http://localhost:5004"
+	@echo "📇 LDAP Port: localhost:389"
 
 stop:
-	docker-compose down
-
-logs:
-	docker-compose logs -f
-
-clean:
-	docker-compose down -v
-	docker rmi ldap-phonebook-app 2>/dev/null || true
-
-shell:
-	docker-compose exec ldap-phonebook /bin/bash
+	docker compose down
 
 restart: stop run
+
+logs:
+	docker compose logs -f
+
+build:
+	docker compose build
+
+clean:
+	docker compose down -v
+	docker rmi coreip-ldap-phonebook:latest 2>/dev/null || true
+
+# --- Testing ---
+test:
+	./venv/bin/python3 -m unittest discover -s tests
+
+# --- Base Server Installation ---
+install-base:
+	@sudo bash install-base-server.sh

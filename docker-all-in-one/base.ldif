@@ -1,0 +1,32 @@
+dn: dc=coreip,dc=local
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: CoreIP
+dc: coreip
+
+dn: ou=People,dc=coreip,dc=local
+objectClass: top
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=Groups,dc=coreip,dc=local
+objectClass: top
+objectClass: organizationalUnit
+ou: Groups
+
+dn: ou=Departments,dc=coreip,dc=local
+objectClass: top
+objectClass: organizationalUnit
+ou: Departments
+
+dn: ou=Devices,dc=coreip,dc=local
+objectClass: top
+objectClass: organizationalUnit
+ou: Devices
+
+dn: ou=ServiceAccounts,dc=coreip,dc=local
+objectClass: top
+objectClass: organizationalUnit
+ou: ServiceAccounts
+

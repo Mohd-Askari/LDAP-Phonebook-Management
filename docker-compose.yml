@@ -1,0 +1,26 @@
+services:
+  coreip-ldap-phonebook:
+    build:
+      context: .
+      dockerfile: docker-all-in-one/Dockerfile
+    image: coreip-ldap-phonebook:latest
+    container_name: coreip-ldap-phonebook
+    restart: unless-stopped
+    ports:
+      - "389:389"    # OpenLDAP (IP Phones, PBX, Yealink, Cisco, Grandstream)
+      - "5004:5004"  # Phonebook Web Management GUI
+    volumes:
+      - ./ldap-data:/var/lib/ldap
+      - ./backups:/app/backups
+      - ./docker-all-in-one/entrypoint.sh:/entrypoint.sh:ro
+      - ./docker-all-in-one/slapd.conf:/etc/ldap/slapd.conf:ro
+      - ./app.py:/app/app.py:ro
+      - ./templates:/app/templates:ro
+    environment:
+      - LDAP_SERVER=127.0.0.1
+      - LDAP_PORT=389
+      - LDAP_BASE=dc=coreip,dc=local
+      - LDAP_ADMIN=cn=admin,dc=coreip,dc=local
+      - LDAP_PASSWORD=coreip@switch
+      - PEOPLE_OU=ou=People,dc=coreip,dc=local
+      - SECRET_KEY=coreip-ldap-secret-key-2026

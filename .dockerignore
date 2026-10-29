@@ -1,0 +1,8 @@
+ldap-phonebook-image.tar.gz
+venv/
+__pycache__/
+*.pyc
+.git/
+backups/
+ldap-data/
+

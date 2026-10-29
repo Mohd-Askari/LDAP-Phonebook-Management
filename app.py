@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -7,6 +8,7 @@ load_dotenv()
 
 # Now import config (which will use the environment variables)
 from config import *
+import json
 import csv
 import io
 import time
@@ -14,43 +16,39 @@ import random
 import subprocess
 import tempfile
 import re
+import threading
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, flash, redirect, url_for, jsonify, Response
 from flask_bootstrap import Bootstrap
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SelectField, SubmitField
 from wtforms.validators import DataRequired, Length, Email, Optional
-from ldap3 import Server, Connection, ALL, SUBTREE, MODIFY_REPLACE, MODIFY_DELETE
+from ldap3 import Server, Connection, ALL, NONE, SUBTREE, MODIFY_REPLACE, MODIFY_DELETE
 
 # ============================================================================
-# PSUTIL CHECK - FORCE IMPORT
+# PSUTIL CHECK
 # ============================================================================
+print(f"🔍 Python interpreter: {sys.executable}")
+
 PSUTIL_AVAILABLE = False
 
-# Force import psutil
 try:
     import psutil
     PSUTIL_AVAILABLE = True
     print("✅ psutil loaded successfully!")
-    
-    # Test if it actually works
     test_cpu = psutil.cpu_percent(interval=0.1)
     test_memory = psutil.virtual_memory().percent
     test_disk = psutil.disk_usage('/').percent
     print(f"✅ psutil test passed! CPU: {test_cpu}%, Memory: {test_memory}%, Disk: {test_disk}%")
-    
 except ImportError as e:
     PSUTIL_AVAILABLE = False
     print(f"❌ psutil import error: {e}")
-    print("⚠️ Please run: pip install psutil")
-    
 except Exception as e:
     PSUTIL_AVAILABLE = False
     print(f"❌ psutil error: {e}")
-    print("⚠️ Please reinstall psutil: pip install --force-reinstall psutil")
 
 # ============================================================================
-# Flask App
+# Flask App - MUST be named 'app' for Gunicorn
 # ============================================================================
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -58,7 +56,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 Bootstrap(app)
 
 # ============================================================================
-# System Metrics Function - REAL METRICS
+# System Metrics Function
 # ============================================================================
 def get_system_metrics():
     """Get REAL system metrics from psutil"""
@@ -70,11 +68,10 @@ def get_system_metrics():
         'status': 'success'
     }
     
-    # IMPORTANT: Check the global flag
     if PSUTIL_AVAILABLE:
         try:
-            # Get REAL CPU usage
-            metrics['cpu'] = psutil.cpu_percent(interval=0.5)
+            # Get REAL CPU usage (non-blocking)
+            metrics['cpu'] = psutil.cpu_percent(interval=None)
             
             # Get REAL memory usage
             mem = psutil.virtual_memory()
@@ -91,7 +88,12 @@ def get_system_metrics():
             metrics['uptime'] = f"{days}d {hours}h" if days > 0 else f"{hours}h"
             metrics['status'] = 'success'
             
-            print(f"📊 REAL Metrics: CPU={metrics['cpu']}%, Memory={metrics['memory']}%, Disk={metrics['disk']}%")
+            # Print once every 10 calls to avoid spam
+            if not hasattr(get_system_metrics, '_call_count'):
+                get_system_metrics._call_count = 0
+            get_system_metrics._call_count += 1
+            if get_system_metrics._call_count % 10 == 1:
+                print(f"📊 REAL Metrics: CPU={metrics['cpu']}%, Memory={metrics['memory']}%, Disk={metrics['disk']}%")
             
         except Exception as e:
             print(f"⚠️ Error getting metrics: {e}")
@@ -102,8 +104,9 @@ def get_system_metrics():
             metrics['uptime'] = "2d 14h"
             metrics['status'] = 'simulated'
     else:
-        # psutil not available - use simulated data
-        print("⚠️ Using simulated metrics (psutil not available)")
+        if not hasattr(get_system_metrics, '_warning_printed'):
+            print("⚠️ Using simulated metrics (psutil not available)")
+            get_system_metrics._warning_printed = True
         metrics['cpu'] = random.randint(15, 60)
         metrics['memory'] = random.randint(40, 80)
         metrics['disk'] = random.randint(30, 70)
@@ -146,8 +149,9 @@ print("=" * 60)
 # ============================================================================
 def get_ldap_connection():
     try:
-        server = Server(LDAP_SERVER, port=LDAP_PORT, get_info=ALL)
-        conn = Connection(server, user=LDAP_ADMIN, password=LDAP_PASSWORD, auto_bind=True)
+        timeout = getattr(config, 'LDAP_CONNECTION_TIMEOUT', 3) if 'config' in globals() else 3
+        server = Server(LDAP_SERVER, port=LDAP_PORT, connect_timeout=timeout, get_info=NONE)
+        conn = Connection(server, user=LDAP_ADMIN, password=LDAP_PASSWORD, auto_bind=True, receive_timeout=5)
         return conn
     except Exception as e:
         print(f"LDAP connection error: {e}")
@@ -169,16 +173,150 @@ def escape_ldap_filter(search_term):
     escaped = ''.join(escape_chars.get(c, c) for c in search_term)
     return escaped
 
+USER_ATTRIBUTES = [
+    'uid', 'cn', 'sn', 'givenName', 'telephoneNumber',
+    'phone2', 'mobile', 'mail', 'employeeNumber', 'title', 'departmentNumber'
+]
+
+_user_count_cache = {'count': 0, 'timestamp': 0, 'filters': {}}
+COUNT_CACHE_FILE = "/app/backups/.user_count_cache.json"
+
+def _read_disk_count():
+    try:
+        if os.path.exists(COUNT_CACHE_FILE):
+            with open(COUNT_CACHE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('count', 0), data.get('timestamp', 0)
+    except Exception:
+        pass
+    return 0, 0
+
+def _write_disk_count(count):
+    try:
+        tmp_file = f"{COUNT_CACHE_FILE}.tmp.{os.getpid()}"
+        with open(tmp_file, 'w') as f:
+            json.dump({'count': count, 'timestamp': time.time()}, f)
+        os.replace(tmp_file, COUNT_CACHE_FILE)
+    except Exception:
+        pass
+
+def invalidate_directory_cache(delta=None):
+    """Update or invalidate count cache when directory is mutated"""
+    global _user_count_cache
+    _user_count_cache['filters'].clear()
+    
+    if delta is not None:
+        curr, ts = _read_disk_count()
+        if curr > 0:
+            new_count = max(0, curr + delta)
+        else:
+            new_count = max(0, _user_count_cache['count'] + delta)
+        _user_count_cache['count'] = new_count
+        _user_count_cache['timestamp'] = time.time()
+        _write_disk_count(new_count)
+    else:
+        _user_count_cache['timestamp'] = 0
+        _user_count_cache['count'] = 0
+        try:
+            if os.path.exists(COUNT_CACHE_FILE):
+                os.unlink(COUNT_CACHE_FILE)
+        except Exception:
+            pass
+
+def _parse_entry_dict(item):
+    """Fast parsing of a single searchResEntry dict from conn.response"""
+    dn = item.get('dn', '')
+    attrs = item.get('attributes', {})
+    def _first(name, default=''):
+        val = attrs.get(name)
+        return str(val[0]) if val and len(val) > 0 else default
+
+    uid = _first('uid')
+    if not uid:
+        for part in dn.split(','):
+            if part.startswith('uid='):
+                uid = part.replace('uid=', '')
+                break
+
+    cn = _first('cn') or uid
+    return {
+        'dn': dn, 'uid': uid, 'cn': cn,
+        'sn': _first('sn'),
+        'givenName': _first('givenName'),
+        'telephoneNumber': _first('telephoneNumber'),
+        'phone2': _first('phone2'),
+        'mobile': _first('mobile'),
+        'mail': _first('mail'),
+        'employeeNumber': _first('employeeNumber'),
+        'title': _first('title'),
+        'departmentNumber': _first('departmentNumber')
+    }
+
+def get_user_count(search_filter='(objectClass=person)', force_refresh=False):
+    """Fast user count with disk-backed cross-worker caching"""
+    global _user_count_cache
+    now = time.time()
+    
+    # 1. Base count for (objectClass=person) - ALWAYS instant
+    if search_filter == '(objectClass=person)':
+        if not force_refresh and _user_count_cache['count'] > 0 and (now - _user_count_cache['timestamp'] < 300):
+            return _user_count_cache['count']
+        disk_count, disk_ts = _read_disk_count()
+        if disk_count > 0:
+            _user_count_cache['count'] = disk_count
+            _user_count_cache['timestamp'] = now
+            return disk_count
+
+    # 2. Filtered search count (e.g. search=aarav)
+    if not force_refresh:
+        cached = _user_count_cache['filters'].get(search_filter)
+        if cached and (now - cached['time'] < 120):
+            return cached['count']
+
+    # 3. For search filters, query matching entries (capped to avoid memory bloat)
+    conn = get_ldap_connection()
+    if not conn:
+        return _user_count_cache['count'] if _user_count_cache['count'] > 0 else 0
+
+    try:
+        if not conn.search(
+            search_base=PEOPLE_OU,
+            search_filter=search_filter,
+            search_scope=SUBTREE,
+            attributes=['1.1'],
+            size_limit=1000
+        ):
+            conn.unbind()
+            return 0
+
+        count = len(conn.response)
+        conn.unbind()
+        
+        _user_count_cache['filters'][search_filter] = {'count': count, 'time': now}
+        if search_filter == '(objectClass=person)':
+            _user_count_cache['count'] = count
+            _user_count_cache['timestamp'] = now
+            _write_disk_count(count)
+        return count
+    except Exception as e:
+        print(f"Error getting user count: {e}")
+        if conn:
+            try:
+                conn.unbind()
+            except Exception:
+                pass
+        return _user_count_cache['count'] if _user_count_cache['count'] > 0 else 0
+
 def get_users_paginated(page=1, per_page=DEFAULT_PER_PAGE, search_term='', sort_by='cn'):
-    """Get paginated users from LDAP with server-side search"""
+    """Get paginated users using fast RFC 2696 Simple Paged Results"""
     conn = get_ldap_connection()
     if not conn:
         return [], 0, 0
-    
+
     try:
         search_term = search_term.strip() if search_term else ''
         search_filter = '(objectClass=person)'
-        
+
         if search_term:
             escaped_term = escape_ldap_filter(search_term)
             search_filter = f"""
@@ -197,141 +335,139 @@ def get_users_paginated(page=1, per_page=DEFAULT_PER_PAGE, search_term='', sort_
                 )
             """
             search_filter = ' '.join(search_filter.split())
-        
+
         total_count = get_user_count(search_filter)
-        
         if total_count == 0:
             conn.unbind()
             return [], 0, 0
-        
-        total_pages = (total_count + per_page - 1) // per_page
+
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
         page = max(1, min(page, total_pages))
-        
-        if not conn.search(
+
+        cookie = None
+        entries_to_skip = (page - 1) * per_page
+        page_entries = []
+
+        # Fast-forward past earlier entries in 1000-entry chunks without attribute overhead
+        while entries_to_skip > 0:
+            chunk_size = min(entries_to_skip, 1000)
+            conn.search(
+                search_base=PEOPLE_OU,
+                search_filter=search_filter,
+                search_scope=SUBTREE,
+                attributes=['1.1'],
+                paged_size=chunk_size,
+                paged_cookie=cookie
+            )
+            cookie = conn.result.get('controls', {}).get('1.2.840.113556.1.4.319', {}).get('value', {}).get('cookie')
+            if not cookie:
+                break
+            entries_to_skip -= chunk_size
+
+        # Fetch only the target page with full user attributes
+        conn.search(
             search_base=PEOPLE_OU,
             search_filter=search_filter,
             search_scope=SUBTREE,
-            attributes=['*']
-        ):
-            print(f"LDAP search failed: {conn.result}")
-            conn.unbind()
-            return [], total_count, total_pages
-        
-        all_users = []
-        for entry in conn.entries:
-            dn = str(entry.entry_dn)
-            uid = ''
-            if hasattr(entry, 'uid') and entry.uid:
-                uid = str(entry.uid)
-            else:
-                for part in dn.split(','):
-                    if part.startswith('uid='):
-                        uid = part.replace('uid=', '')
-                        break
-            
-            user = {
-                'dn': dn,
-                'uid': uid,
-                'cn': str(entry.cn) if hasattr(entry, 'cn') and entry.cn else uid,
-                'sn': str(entry.sn) if hasattr(entry, 'sn') and entry.sn else '',
-                'givenName': str(entry.givenName) if hasattr(entry, 'givenName') and entry.givenName else '',
-                'telephoneNumber': str(entry.telephoneNumber) if hasattr(entry, 'telephoneNumber') and entry.telephoneNumber else '',
-                'phone2': str(entry.phone2) if hasattr(entry, 'phone2') and entry.phone2 else '',
-                'mobile': str(entry.mobile) if hasattr(entry, 'mobile') and entry.mobile else '',
-                'mail': str(entry.mail) if hasattr(entry, 'mail') and entry.mail else '',
-                'employeeNumber': str(entry.employeeNumber) if hasattr(entry, 'employeeNumber') and entry.employeeNumber else '',
-                'title': str(entry.title) if hasattr(entry, 'title') and entry.title else '',
-                'departmentNumber': str(entry.departmentNumber) if hasattr(entry, 'departmentNumber') and entry.departmentNumber else ''
-            }
-            all_users.append(user)
-        
-        if sort_by and all_users:
-            all_users.sort(key=lambda x: x.get(sort_by, '').lower())
-        
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        paginated_users = all_users[start_idx:end_idx]
-        
+            attributes=USER_ATTRIBUTES,
+            paged_size=per_page,
+            paged_cookie=cookie
+        )
+        page_entries = conn.response
+
+        users = [_parse_entry_dict(item) for item in page_entries if item.get('type') == 'searchResEntry']
+
+        if sort_by and users:
+            users.sort(key=lambda x: x.get(sort_by, '').lower())
+
         conn.unbind()
-        return paginated_users, total_count, total_pages
-        
+        return users, total_count, total_pages
     except Exception as e:
-        print(f"Error in get_users_paginated: {str(e)}")
+        print(f"Error in get_users_paginated: {e}")
         if conn:
-            conn.unbind()
+            try:
+                conn.unbind()
+            except Exception:
+                pass
         return [], 0, 0
 
-def get_user_count(search_filter='(objectClass=person)'):
-    """Efficiently count users without retrieving all entries"""
-    conn = get_ldap_connection()
-    if not conn:
-        return 0
-    
-    try:
-        if not conn.search(
-            search_base=PEOPLE_OU,
-            search_filter=search_filter,
-            search_scope=SUBTREE,
-            attributes=['uid'],
-            size_limit=0
-        ):
-            print(f"Count search failed: {conn.result}")
-            conn.unbind()
-            return 0
-        
-        count = len(conn.entries)
-        conn.unbind()
-        return count
-        
-    except Exception as e:
-        print(f"Error getting user count: {str(e)}")
-        if conn:
-            conn.unbind()
-        return 0
-
 def get_all_users():
-    """Get all users from LDAP"""
+    """Get all users via paged iteration (for CSV export)"""
     conn = get_ldap_connection()
     if not conn:
         return []
     try:
-        conn.search(search_base=PEOPLE_OU, search_filter='(objectClass=person)', search_scope=SUBTREE, attributes=['*'])
         users = []
-        for entry in conn.entries:
-            dn = str(entry.entry_dn)
-            uid = ''
-            if hasattr(entry, 'uid') and entry.uid:
-                uid = str(entry.uid)
-            else:
-                for part in dn.split(','):
-                    if part.startswith('uid='):
-                        uid = part.replace('uid=', '')
-                        break
-            user = {
-                'dn': dn, 'uid': uid,
-                'cn': str(entry.cn) if hasattr(entry, 'cn') and entry.cn else uid,
-                'sn': str(entry.sn) if hasattr(entry, 'sn') and entry.sn else '',
-                'givenName': str(entry.givenName) if hasattr(entry, 'givenName') and entry.givenName else '',
-                'telephoneNumber': str(entry.telephoneNumber) if hasattr(entry, 'telephoneNumber') and entry.telephoneNumber else '',
-                'phone2': str(entry.phone2) if hasattr(entry, 'phone2') and entry.phone2 else '',
-                'mobile': str(entry.mobile) if hasattr(entry, 'mobile') and entry.mobile else '',
-                'mail': str(entry.mail) if hasattr(entry, 'mail') and entry.mail else '',
-                'employeeNumber': str(entry.employeeNumber) if hasattr(entry, 'employeeNumber') and entry.employeeNumber else '',
-                'title': str(entry.title) if hasattr(entry, 'title') and entry.title else '',
-                'departmentNumber': str(entry.departmentNumber) if hasattr(entry, 'departmentNumber') and entry.departmentNumber else ''
-            }
-            users.append(user)
+        cookie = None
+        while True:
+            conn.search(
+                search_base=PEOPLE_OU,
+                search_filter='(objectClass=person)',
+                search_scope=SUBTREE,
+                attributes=USER_ATTRIBUTES,
+                paged_size=500,
+                paged_cookie=cookie
+            )
+            cookie = conn.result.get('controls', {}).get('1.2.840.113556.1.4.319', {}).get('value', {}).get('cookie')
+            for item in conn.response:
+                if item.get('type') == 'searchResEntry':
+                    users.append(_parse_entry_dict(item))
+            if not cookie:
+                break
         conn.unbind()
         return users
     except Exception as e:
-        print(f"Error getting users: {e}")
+        print(f"Error getting all users: {e}")
         if conn:
-            conn.unbind()
+            try:
+                conn.unbind()
+            except Exception:
+                pass
         return []
 
 def add_user_to_ldap(uid, cn, sn, givenName, password, phone2="", **kwargs):
-    """Add user using ldapadd command"""
-    ldif = f"""dn: uid={uid},{PEOPLE_OU}
+    """Add user using native ldap3 connection with ldapadd fallback"""
+    conn = get_ldap_connection()
+    if conn:
+        try:
+            dn = f"uid={uid},{PEOPLE_OU}"
+            object_class = ['top', 'person', 'organizationalPerson', 'inetOrgPerson', 'phone2Object']
+            attributes = {
+                'uid': uid,
+                'cn': cn,
+                'sn': sn,
+                'givenName': givenName,
+                'userPassword': password
+            }
+            for key in ['telephoneNumber', 'mobile', 'mail', 'employeeNumber', 'title', 'departmentNumber']:
+                val = kwargs.get(key)
+                if val:
+                    attributes[key] = str(val).strip()
+            if phone2:
+                attributes['phone2'] = str(phone2).strip()
+
+            success = conn.add(dn, object_class, attributes)
+            result_desc = conn.result.get('description', '')
+            result_msg = conn.result.get('message', '')
+            conn.unbind()
+
+            if success:
+                invalidate_directory_cache(delta=1)
+                return True, f"User {uid} added successfully!"
+            else:
+                err = result_msg or result_desc or "LDAP add failed"
+                return False, f"Error: {err}"
+        except Exception as e:
+            if conn:
+                try:
+                    conn.unbind()
+                except Exception:
+                    pass
+            return False, f"Error adding user {uid}: {str(e)}"
+
+    # Fallback to ldapadd command if direct connection could not be established
+    try:
+        ldif = f"""dn: uid={uid},{PEOPLE_OU}
 objectClass: top
 objectClass: person
 objectClass: organizationalPerson
@@ -343,41 +479,44 @@ sn: {sn}
 givenName: {givenName}
 userPassword: {password}
 """
-    if kwargs.get('telephoneNumber'):
-        ldif += f"telephoneNumber: {kwargs['telephoneNumber']}\n"
-    if phone2:
-        ldif += f"phone2: {phone2}\n"
-    if kwargs.get('mobile'):
-        ldif += f"mobile: {kwargs['mobile']}\n"
-    if kwargs.get('mail'):
-        ldif += f"mail: {kwargs['mail']}\n"
-    if kwargs.get('employeeNumber'):
-        ldif += f"employeeNumber: {kwargs['employeeNumber']}\n"
-    if kwargs.get('title'):
-        ldif += f"title: {kwargs['title']}\n"
-    if kwargs.get('departmentNumber'):
-        ldif += f"departmentNumber: {kwargs['departmentNumber']}\n"
-    
-    temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.ldif')
-    temp_file.write(ldif)
-    temp_file.close()
+        if kwargs.get('telephoneNumber'):
+            ldif += f"telephoneNumber: {kwargs['telephoneNumber']}\n"
+        if phone2:
+            ldif += f"phone2: {phone2}\n"
+        if kwargs.get('mobile'):
+            ldif += f"mobile: {kwargs['mobile']}\n"
+        if kwargs.get('mail'):
+            ldif += f"mail: {kwargs['mail']}\n"
+        if kwargs.get('employeeNumber'):
+            ldif += f"employeeNumber: {kwargs['employeeNumber']}\n"
+        if kwargs.get('title'):
+            ldif += f"title: {kwargs['title']}\n"
+        if kwargs.get('departmentNumber'):
+            ldif += f"departmentNumber: {kwargs['departmentNumber']}\n"
+        
+        temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.ldif')
+        temp_file.write(ldif)
+        temp_file.close()
 
-    cmd = [
-        'ldapadd',
-        '-x',
-        '-H', f'ldap://{LDAP_SERVER}:{LDAP_PORT}',
-        '-D', LDAP_ADMIN,
-        '-w', LDAP_PASSWORD,
-        '-f', temp_file.name
-    ]
+        cmd = [
+            'ldapadd',
+            '-x',
+            '-H', f'ldap://{LDAP_SERVER}:{LDAP_PORT}',
+            '-D', LDAP_ADMIN,
+            '-w', LDAP_PASSWORD,
+            '-f', temp_file.name
+        ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    os.unlink(temp_file.name)
-    
-    if result.returncode == 0:
-        return True, f"User {uid} added successfully!"
-    else:
-        return False, f"Error: {result.stderr}"
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        os.unlink(temp_file.name)
+        
+        if result.returncode == 0:
+            invalidate_directory_cache(delta=1)
+            return True, f"User {uid} added successfully!"
+        else:
+            return False, f"Error: {result.stderr.strip()}"
+    except Exception as e:
+        return False, f"Error: Cannot contact LDAP server ({str(e)})"
 
 def export_users_to_csv(users):
     output = io.StringIO()
@@ -475,7 +614,6 @@ class ResetPasswordForm(FlaskForm):
 # ============================================================================
 @app.route('/')
 def index():
-    total_count = get_user_count()
     metrics = get_system_metrics()
     
     return render_template(
@@ -572,24 +710,37 @@ def search():
     form = SearchForm()
     results = []
     if form.validate_on_submit():
-        search_term = form.search_term.data
+        search_term = form.search_term.data.strip() if form.search_term.data else ''
         search_type = form.search_type.data
-        all_users = get_all_users()
-        for user in all_users:
+        if search_term:
+            escaped = escape_ldap_filter(search_term)
             if search_type == 'name':
-                if (search_term.lower() in user['cn'].lower() or 
-                    search_term.lower() in user['sn'].lower() or 
-                    search_term.lower() in user['givenName'].lower()):
-                    results.append(user)
+                filter_core = f"(|(cn=*{escaped}*)(sn=*{escaped}*)(givenName=*{escaped}*))"
             elif search_type == 'number':
-                if search_term in user['telephoneNumber'] or search_term in user['mobile']:
-                    results.append(user)
+                filter_core = f"(|(telephoneNumber=*{escaped}*)(mobile=*{escaped}*)(phone2=*{escaped}*))"
             elif search_type == 'email':
-                if search_term.lower() in user['mail'].lower():
-                    results.append(user)
+                filter_core = f"(mail=*{escaped}*)"
             elif search_type == 'uid':
-                if search_term.lower() in user['uid'].lower():
-                    results.append(user)
+                filter_core = f"(uid=*{escaped}*)"
+            else:
+                filter_core = f"(|(cn=*{escaped}*)(uid=*{escaped}*)(telephoneNumber=*{escaped}*))"
+
+            conn = get_ldap_connection()
+            if conn:
+                try:
+                    conn.search(
+                        search_base=PEOPLE_OU,
+                        search_filter=f"(&(objectClass=person){filter_core})",
+                        search_scope=SUBTREE,
+                        attributes=USER_ATTRIBUTES,
+                        size_limit=200
+                    )
+                    results = [_parse_entry_dict(item) for item in conn.response if item.get('type') == 'searchResEntry']
+                    conn.unbind()
+                except Exception as e:
+                    print(f"Error during search: {e}")
+                    if conn:
+                        conn.unbind()
         flash(f'Found {len(results)} user(s)', 'info')
     return render_template('search.html', title='Search Users', form=form, results=results, icon='search', now=datetime.now())
 
@@ -610,6 +761,7 @@ def reset_password():
             dn = f"uid={form.uid.data},{PEOPLE_OU}"
             conn.modify(dn, {'userPassword': [(MODIFY_REPLACE, [form.new_password.data])]})
             conn.unbind()
+            invalidate_directory_cache()
             flash(f'Password for {form.uid.data} reset successfully!', 'success')
             return redirect(url_for('users'))
         except Exception as e:
@@ -677,6 +829,7 @@ def import_csv():
     try:
         csv_content = file.read().decode('utf-8')
         results = import_users_from_csv(csv_content)
+        invalidate_directory_cache()
         flash(f'Import completed! Total: {results["total"]}, Success: {results["success"]}, Failed: {results["failed"]}', 
               'success' if results['failed'] == 0 else 'warning')
         if results['errors']:
@@ -703,6 +856,7 @@ def delete_user():
         dn = f"uid={uid},{PEOPLE_OU}"
         conn.delete(dn)
         conn.unbind()
+        invalidate_directory_cache(delta=-1)
         flash(f'User {uid} deleted successfully!', 'success')
     except Exception as e:
         flash(f'Error deleting user: {e}', 'danger')
@@ -736,6 +890,7 @@ def delete_multiple_users():
     conn.unbind()
     
     if deleted:
+        invalidate_directory_cache(delta=-len(deleted))
         flash(f'Successfully deleted {len(deleted)} user(s): {", ".join(deleted)}', 'success')
     if failed:
         flash(f'Failed to delete {len(failed)} user(s): {", ".join(failed)}', 'danger')
@@ -853,6 +1008,7 @@ def edit_user(uid):
                 
                 if modified:
                     conn.modify(dn, changes)
+                    invalidate_directory_cache(delta=0)
                     flash(f'User {uid} updated successfully!', 'success')
                 else:
                     flash('No changes made', 'info')

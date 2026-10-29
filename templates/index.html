@@ -637,8 +637,8 @@
     updateUserCount();
     refreshWeeklyActivity();
     
-    every(updateSystemMetrics, 5000);
-    every(updateUserCount, 15000);
+    every(updateSystemMetrics, 15000);
+    every(updateUserCount, 30000);
     every(refreshWeeklyActivity, 60000);
   }
 
